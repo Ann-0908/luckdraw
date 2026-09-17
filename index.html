@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>抽籤程式</title>
+    <style>
+      :root {
+        --bg1: #1f1c2c;
+        --bg2: #928dab;
+        --card: rgba(255, 255, 255, 0.12);
+        --border: rgba(255, 255, 255, 0.18);
+        --text: #f5f7ff;
+        --accent: #ffd166;
+        --accent2: #06d6a0;
+        --shadow: rgba(0, 0, 0, 0.28);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+        background: linear-gradient(135deg, var(--bg1), var(--bg2));
+        color: var(--text);
+      }
+
+      .container {
+        width: min(900px, 92vw);
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        box-shadow: 0 20px 60px var(--shadow);
+        padding: 32px;
+        backdrop-filter: blur(8px);
+      }
+
+      h1 {
+        margin: 0 0 24px;
+        text-align: center;
+        font-size: clamp(2rem, 4vw, 3rem);
+        letter-spacing: 0.08em;
+      }
+
+      .panel {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 24px;
+      }
+
+      .box {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 18px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 10px;
+        font-weight: 700;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 220px;
+        resize: vertical;
+        border: none;
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.4);
+        color: var(--text);
+        padding: 16px;
+        font-size: 1rem;
+        line-height: 1.7;
+      }
+
+      textarea:focus {
+        outline: 2px solid rgba(255, 209, 102, 0.8);
+      }
+
+      .result-box {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100%;
+      }
+
+      .title {
+        margin-bottom: 12px;
+        font-size: 1.1rem;
+        opacity: 0.9;
+      }
+
+      .winner {
+        width: 100%;
+        min-height: 140px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-size: clamp(2rem, 4vw, 3rem);
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(255, 209, 102, 0.25), rgba(6, 214, 160, 0.2));
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        padding: 18px;
+        transition: all 0.2s ease;
+      }
+
+      .winner.is-running {
+        color: var(--accent);
+      }
+
+      .actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 22px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      button {
+        border: none;
+        border-radius: 12px;
+        padding: 12px 24px;
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.15s ease, opacity 0.2s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      .primary {
+        background: linear-gradient(135deg, var(--accent), #ffb703);
+        color: #2c1d00;
+      }
+
+      .secondary {
+        background: rgba(255, 255, 255, 0.12);
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+
+      @media (max-width: 760px) {
+        .panel {
+          grid-template-columns: 1fr;
+        }
+
+        .container {
+          padding: 18px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>抽籤程式</h1>
+
+      <div class="panel">
+        <div class="box">
+          <label for="names">參與名單</label>
+          <textarea id="names" placeholder="請輸入名字，每行一個，或用逗號分隔：&#10;阿明&#10;小花&#10;王五&#10;莉莉">阿明
+小花
+王五
+莉莉
+小強</textarea>
+        </div>
+
+        <div class="box result-box">
+          <div class="title">本次幸運者</div>
+          <div id="winner" class="winner">等待抽籤</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="drawBtn" class="primary">開始抽籤</button>
+        <button id="resetBtn" class="secondary">重置</button>
+      </div>
+    </div>
+
+    <script>
+      const namesInput = document.getElementById('names');
+      const winnerEl = document.getElementById('winner');
+      const drawBtn = document.getElementById('drawBtn');
+      const resetBtn = document.getElementById('resetBtn');
+
+      let drawTimer = null;
+      let isDrawing = false;
+
+      function getParticipants() {
+        const rawText = namesInput.value.trim();
+        if (!rawText) return [];
+
+        return rawText
+          .split(/[\n,，]+/)
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+
+      function startDraw() {
+        const participants = getParticipants();
+
+        if (participants.length === 0) {
+          winnerEl.textContent = '請先輸入名單';
+          winnerEl.classList.remove('is-running');
+          return;
+        }
+
+        if (isDrawing) return;
+
+        isDrawing = true;
+        drawBtn.textContent = '抽籤中...';
+        winnerEl.classList.add('is-running');
+
+        let index = 0;
+        drawTimer = setInterval(() => {
+          const randomName = participants[Math.floor(Math.random() * participants.length)];
+          winnerEl.textContent = randomName;
+          index++;
+        }, 80);
+
+        setTimeout(() => {
+          clearInterval(drawTimer);
+          const winner = participants[Math.floor(Math.random() * participants.length)];
+          winnerEl.textContent = winner;
+          winnerEl.classList.remove('is-running');
+          isDrawing = false;
+          drawBtn.textContent = '開始抽籤';
+        }, 2200);
+      }
+
+      function resetDraw() {
+        clearInterval(drawTimer);
+        isDrawing = false;
+        drawBtn.textContent = '開始抽籤';
+        winnerEl.textContent = '等待抽籤';
+        winnerEl.classList.remove('is-running');
+      }
+
+      drawBtn.addEventListener('click', startDraw);
+      resetBtn.addEventListener('click', resetDraw);
+    </script>
+  </body>
+</html>
